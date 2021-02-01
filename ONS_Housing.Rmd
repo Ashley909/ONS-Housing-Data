@@ -1,0 +1,380 @@
+---
+title: "_ONS Housing_ Data Analysis"
+author: "Ashley Pearmain"
+date: "Last Updated: `r format(Sys.time(), '%b %d, %Y')` " 
+
+output:
+  html_document:
+    number_sections: FALSE # the sections are numbered
+    hightlight: pygments #  try default, tango, pygments, kate, monochrome, espresso, zenburn, haddock, breezedark, and textmate. Pass null to prevent syntax highlighting.
+    theme: cerulean # try cerulean, journal, flatly, darkly, readable, spacelab, united, cosmo, lumen, paper, sandstone, simplex, and yeti
+    df_print: paged
+---
+
+# Introduction
+_The Office of National Statistics_ (ONS) is the administrative office of the UK statistics authority which reports directly to the UK Parliament. 
+Its purpose is to collected and publish statistics related to the economy, population and society of the UK.
+
+Being responsible for some areas of statistics in Scotland, Northern Ireland and Wales. This report is concerning detached housing prices within towns and cities in England and Wales over the last fifteen years up to 2019. It should be mentioned that this data set contains the average detached house prices and is officially named as _House Price Statistics for Small Areas_ (HPSSAs) by the ONS. 
+
+
+This data is worth studying to obtain an insight on how the average detached housing prices are increasing throughout England and Wales, additionally this data analysis discloses the most expensive and inexpensive regions to live (house-wise) in the two countries.
+
+Furthermore, pointing out the most expensive and inexpensive towns/cities. These results can be used in conjunction with other social/community lead data to help explain an areas prosperity, future investment, etc. 
+
+
+
+# Data
+
+This data comprises of twenty-plus variables and over 300 observations (being the different towns and cities in England and Wales). The average detached house prices have been collected every year since 1995 at interval monthly quarters. 
+
+The data used within the report includes house prices from the last twenty-four years (1995 onwards).  Therefore, this analysis reflects the dynamics of housing prices within England and Wales every year for a twenty-four year period. 
+
+This dataset is available at the ONS website under the People, Population and Community tab, then onto the Housing link. Once on the Housing data page the dataset used in this report is in the section titled, _Median house prices for administrative geographies: HPSSA dataset 9_.   
+
+Sorting through the data certain variables are useless for example the Local authority code, and the Region/Country code to name a few. Variables like these are disregarded because they hold no use in gaining the meaningful analysis of this report.
+
+Also an assumption is that the average detached house price in a particular year, in a town or city, does not vary hugely hence using the values at the forth quarter (December average house prices) of each year will suffice. 
+
+```{r, setup, echo=FALSE, message = FALSE}
+knitr::opts_chunk$set(echo=FALSE, message = FALSE, eval=TRUE, results = "hide",
+                      warning = FALSE, error = FALSE, fig.dim = c(10, 6))
+```
+
+```{r}
+library("tidyverse")
+library("here")
+library("lubridate")
+library("janitor")
+library(ggplot2)
+library(readr)
+library(dplyr)
+```
+
+
+```{r}
+# importing data
+data_raw <- read_csv(here("data", "average_detached_house_prices.csv"))
+head(data_raw)
+```
+
+```{r}
+#  
+df <- data_raw %>%
+  clean_names()
+head(df)
+```
+
+
+```{r}
+# further curating 
+df <- df %>% 
+  select(region_country_name | local_authority_name | contains("year_ending_dec"))
+head(df)
+```
+
+
+```{r}
+# further curating 
+df <- df %>%
+  pivot_longer( # hidden variable within data which is prices so we need a column for prices
+    cols = contains("year_ending_dec"), # taking elements from these columns
+    names_pattern = "year_ending_dec_(.*)", # selecting year numbers
+    names_to = "year", 
+    values_to = "price"
+  )
+head(df)
+```
+
+
+```{r}
+# further curating
+df <- df %>%
+  rename(region = region_country_name) %>%
+  rename(town_city = local_authority_name) %>%
+  mutate(year = as.integer(year)) %>%
+  mutate(price = parse_number(price))
+
+df$region <- as.factor(df$region)
+df$town_city <- as.factor(df$town_city)
+head(df)
+dim(df)
+df
+```
+
+# Questions
+
+##### What regions of England and Wales have on average the highest and lowest priced detached houses, in 2019? 
+
+To answer this question, it will be done by taking the mean house price of every town and city within that region, within 2019. Eventually showing the latest median house price within the regions of England and Wales. 
+Here only 2019 is looked at, to offer an insight into what the modern-time housing prices are like in England and Wales. 
+
+
+##### How does the average detached house in the London region compare to the South East region? 
+
+Here the data of the two regions of London and the South East are grouped and averages taken. A figure showing the relationship of the averaged detached housing price from London and the South East over the past twenty-four years. 
+
+
+##### Studying London region itself, how dramatically have detached house prices risen and roughly at what rate?
+
+To answer this question the region of London and all it's Boroughs are of interest. All averaged housing prices since 1995 will be plotted to state the trend that the capital of England has experienced in recent years. 
+This should also give recognition to what Borough has the most inexpensive/expensive detached house, on average. 
+
+
+##### Whatever region has the lowest average detached house pricing in 2019, what town/city (of that region) has the cheapest average detached house price in the same year. 
+
+Taking the data from 2019 plus collecting the data from the cheapest region of detached housing once found from the first question, a figure can be constructed. This will depict the most inexpensive house price and indicate the associated town or city.  
+
+
+##### What does the average detached house price distribution look like throughout England and Wales?  
+
+Creating a count of the detached houses and plotting them against price, will answer this question. Furthermore, only 2019 house prices will be considered. The data of detached house prices from all towns and cities in England and Wales will be invovled.
+
+
+
+# Analysis
+
+
+#### 1. What regions of England and Wales have on average the highest and lowest priced detached houses, in 2019? 
+
+```{r}
+# Compute average prices by region for a particular year
+dfq1 <- df %>%
+  filter(year == 2019) %>%
+  group_by(region) %>%
+  summarise(avg_price = signif(mean(price, na.rm = TRUE), 3))
+dfq1
+```
+```{r, results='hold'}
+# plotting
+
+ggplot(mapping = aes( y = dfq1$region, x = dfq1$avg_price, fill = dfq1$region)) +
+  geom_col(alpha = 0.6, show.legend = FALSE) +
+  scale_x_continuous(limits = c(0, 1600000), breaks = seq(0, 1600000, 250000)) +
+  labs( y = "Regions",
+        x = "Mean House Price (£)",
+        title = "Visualisation For Question 1",
+        caption = "Figure 1: Illustration of the Regions of England\n
+        (and Wales) against the mean detached house Price (£)") +
+  geom_text(aes(x = dfq1$avg_price, y = dfq1$region, label = dfq1$avg_price),
+            stat = "sum", size = 4, vjust = 0.5, hjust = 0, ) +
+  theme(panel.background = element_blank(), 
+        axis.line = element_line(colour = "black", linetype = "solid"))
+```
+
+Figure 1 indicates that in 2019 London had an average detached house price of £1.52 million and thus the highest priced detached houses in England. The lowest priced detached houses on average are within the North East region of England, priced at £246,000.
+
+
+
+
+#### 2. How does the average detached house in the London region compare to the South East region? 
+
+
+```{r}
+dfq2 <- df %>%
+  filter(region %in% c("London", "South East")) %>%
+  group_by(region, year) %>%
+  summarise(avg_price = mean(price, na.rm = TRUE))
+dfq2
+```
+
+
+```{r, results='hold'}
+dfq2 %>%
+  ggplot(mapping = aes(x = year, y = avg_price, fill = region)) +
+    geom_col(position = position_dodge()) +
+    scale_x_continuous(limits = c(1995, 2019), breaks = seq(1995, 2019, 2)) +
+    scale_y_continuous(limits = c(0, 1600000), breaks = seq(0, 1600000, 250000)) +
+    labs( y = "Mean House Price (£)",
+        x = "Year",
+        title = "Visualisation For Question 2",
+        caption = "Figure 2: Display of the mean detached house Price (£)\n
+        over the previous twenty-four years for London and the South east",
+        fill = "Region of England") +
+    theme(panel.background = element_blank(), 
+          axis.line = element_line(colour = "black", linetype = "solid"))
+```
+
+Figure 2 states a general increase in detached house prices for both London and the South East from the year of 1995. There is a clear disparity between London and the South East however, as in terms of the average priced value.
+
+London begins at 1995 slightly above detached house prices from the South East and by the early 2000's the prices are more than double the price than in the South East. 
+During the late 2010's the disparity lengths further with London detached house prices more than three time the price than detached houses in the South East, on average. 
+
+There is an interesting dip in detached house prices around 2007 to 2011 for both regions of England, this is most likely linked to the financial crisis of 2008.
+Though it does seem the dip is in the years after 2008 and in 2010 London detached house prices shot up to over £1 million then drop to around £750,000 a year after, suggesting an anomaly. 
+
+
+
+
+
+#### 3. Studying London region itself, how dramatically have detached house prices risen and roughly at what rate?
+
+```{r}
+
+dfq3 <- df %>%
+  filter(region %in% "London") %>%
+  group_by(town_city, year) %>%
+  summarise(ave_price = signif(mean(price, na.rm = TRUE), 5))
+dfq3
+```
+```{r}
+# splitting of london boroughs so that two visualisations
+# can be produced for clearer analysis
+
+df3a <- dfq3[dfq3$town_city == c("Hillingdon", "Hounslow", "Waltham Forest",
+            "Islington", "Kensington and Chelsea", "Tower Hamlets",
+            "Kingston upon Thames", "Lambeth", "Lewisham", "Sutton",
+            "Merton", "Newham", "Redbridge", "Richmond upon Thames", "Southwark",
+            "Wandsworth", "Westminster"),]
+df3a$town_city <- droplevels(df3a$town_city)
+df3a
+
+df3b <- dfq3[dfq3$town_city == c("Barking and Dagenham", "Barnet", "Bexley",
+            "Brent", "Bromley", "Camden", "City of London", "Croydon", "Enfield",
+            "Greenwich", "Hackney", "Hammersmith and Fulham	", "Haringey", "Harrow", "Havering"),]
+df3b$town_city <- droplevels(df3b$town_city)
+df3b
+```
+
+
+```{r, results='hold'}
+# first set of dataframe, beginning boroughs of london  
+df3a %>%
+  ggplot(mapping = aes(x = year, y = ave_price, group = town_city, colour = town_city))+
+  geom_line(show.legend = TRUE) +
+    scale_x_continuous(limits = c(1995, 2019), breaks = seq(1995, 2019, 2)) +
+    scale_y_continuous(limits = c(0, 6000000), breaks = seq(0, 6000000, 500000),
+                       labels =  function(x) format(x, scientific = TRUE)) +
+    labs( y = "Mean House Price (£)",
+        x = "Year",
+        title = "Visualisation For Question 3",
+        caption = "Figure 3a: Showing first set of the London Boroughs
+        mean detached house Price (£) over the previous twenty-four years",
+        colour = "Boroughs of London") +
+    theme(panel.background = element_blank(), legend.position = "right", 
+          axis.line = element_line(colour = "black", linetype = "solid")) 
+```
+
+Figure 3a and 3b are showing the same relationship of the averaged detached house price over time, nevertheless for clarity the data has been split (split of the London boroughs) into the two figures. 
+
+Figure 3a is displaying that the borough of Kensington & Chelsea have had the highest detached house prices far above than any other borough in London.
+It is apparent that the lower priced boroughs have seen a low increase rate in price over twenty-four years and that it is the higher priced boroughs that experience a very high increase rate in price.
+
+The dramatic nature occurs in boroughs of Kensington & Chelsea and Wandsworth, because as seen on Figure 3a the increase in detached house prices are more than doubling in price every six years for Wandsworth and every three years for Kensington & Chelsea.
+
+
+
+```{r, results='hold'}
+# second set of dataframe, remaining boroughs of london
+df3b %>%
+  ggplot(mapping = aes(x = year, y = ave_price, colour = town_city))+
+  geom_line(show.legend = TRUE) +
+    scale_x_continuous(limits = c(1995, 2019), breaks = seq(1995, 2019, 2)) +
+    scale_y_continuous(limits = c(0, 3000000), breaks = seq(0, 3000000, 500000),
+                       labels =  function(x) format(x, scientific = TRUE)) +
+    labs( y = "Mean House Price (£)",
+        x = "Year",
+        title = "Visualisation For Question 3",
+        caption = "Figure 3b: Showing remaining set of the London Boroughs
+        mean detached house Price (£) over the previous twenty-four years",
+        colour = "Boroughs of London") +
+    theme(panel.background = element_blank(), legend.position = "right",
+          axis.line = element_line(colour = "black", linetype = "solid"))
+```
+
+Studying the second visualiation (Figure 3b) with the remaining London boroughs, it exhibits that Camden is the highest priced borough from the others on Figure 3b. Camden does not hold as expensive detached houses are Kensington & Chelsea though.
+
+The common trend in Figure 3b is similar to Figure 3a, where the higher priced borough experience the highest increase rate in price over the years. Haringey and Camden experience rapid rates of increase as prices double every five years and seven years for Camden and Haringry, respectively.   
+
+
+
+
+
+#### 4. Whatever region has the lowest average detached house pricing in 2019, what town/city (of that region) has the cheapest average detached house price in the same year.
+
+
+```{r}
+# As found from Figure 1, North East has on average the cheapest detached house prices.
+# so we are only interested in the North East region here
+
+dfq4 <- df %>% 
+  filter(region == "North East") %>%
+  filter(year == 2019) %>%
+  group_by(town_city)
+dfq4
+```
+```{r, results='hold'}
+dfq4 %>%
+  ggplot(mapping = aes( y = town_city, x = price, fill = town_city)) +
+    geom_col(alpha = 0.6, show.legend = FALSE) +
+    scale_x_continuous(limits = c(0, 300000), breaks = seq(0, 300000, 50000)) +
+    labs( y = "Towns/Cities",
+        x = "Average Detached House Price (£)",
+        title = "Visualisation For Question 4",
+        caption = "Figure 4: Demostration of the Towns/Cities in the North East of England\n
+        versus the average detached house Price (£) in 2019") +
+    theme(panel.background = element_blank(),
+          axis.line = element_line(colour = "black", linetype = "solid"))
+
+```
+
+The region with the lowest detached house prices (on average) is the North East, found from Figure 1. And so in 2019 the County of Durham holds on average the cheapest detached house prices compared to all other towns and cities within the North East.
+
+The most expensive detached houses can be found in North Tyneside. All analysis has been conducted from Figure 4.      
+
+
+
+
+#### 5. What does the average detached house price distribution look like throughout England and Wales? 
+
+
+```{r}
+# Compute average prices throughout England and Wales for a particular year
+dfq5 <- df %>%
+  filter(year == 2019) %>%
+  group_by(region, price) %>%
+  summarise(round_price = signif(price, 2))
+dfq5$round_price <- as.integer(dfq5$round_price)
+
+dfq5
+```
+```{r}
+
+ggplot(mapping = aes(x = dfq5$round_price, fill = dfq5$region)) +
+  geom_histogram() +
+  xlim(180000, 1000000) +
+  ylim(0, 50) +
+  labs(
+    x = "Detached House Price (£)",
+    y = "Frequency of Towns/Cities",
+    title = "Visualisation For Question 5",
+    caption = "Figure 5: Count of the Towns/Cities in England and Wales
+    with its averaged detached house price in the particular price ranges
+    (in 2019)",
+    fill = "Regions of England\n and Wales"
+     ) + 
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black", linetype = "solid"))
+
+```
+
+Here from Figure 5 the most popular detached house price throughout England and Wales is in the range of £300,000 to £350,000 (from 2019). The second most popular detached house price is £240,000. Figure 5 also indicates what regions fall into the price categories.
+
+Below £500,000 contains Wales and most of the England regions, where above the detached house prices of £500,000 contain only London, the South East and the East of England.  
+
+
+
+
+# Conclusion
+
+London region has the highest detached housing prices compared to the rest of England and Wales, at £1.52 million per detached house on average. The North East of England has the lowest detached housing prices on average and it costs around £200,000 to buy a detached house in County Durham.
+
+London detached house prices when compared with the South East (as of 2019), are on average three times the price. As South East detached housing prices on average are roughly £500,000. 
+
+
+A future question that can be asked from this analysis could be to look closely at how the financial crisis of 2008 fluctuated past detached house prices in England and Wales. 
+
+A closer examination at London and the South East during the years leading up to and beyond the financial crisis could be carried out, further explaining the dips in prices in Figure 2.    
+
+
+
